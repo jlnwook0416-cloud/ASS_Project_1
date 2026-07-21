@@ -96,6 +96,9 @@ CAR_TIRE_HEIGHT = 26
 # 거리 표시 글자의 크기입니다.
 DISTANCE_TEXT_SIZE = 28
 
+# 자동차가 장애물에 이 거리 이하로 가까워지면 전진을 막습니다.
+STOP_DISTANCE = 80
+
 
 def draw_dashed_vertical_line(screen, color, line_x, road_scroll_y, line_width):
     """카메라 스크롤에 맞춰 세로 점선을 자연스럽게 이어 그립니다."""
@@ -173,6 +176,8 @@ def draw_distance_text(screen, font, front_distance):
 
     if front_distance is None:
         distance_text = "Distance: No obstacle"
+    elif front_distance <= STOP_DISTANCE:
+        distance_text = f"Distance: {front_distance} px - STOP"
     else:
         distance_text = f"Distance: {front_distance} px"
 
@@ -200,6 +205,12 @@ def draw_front_sensor_line(screen, player_x, player_y, obstacle_car, road_scroll
         obstacle_rear_center,
         2,
     )
+
+
+def is_obstacle_too_close(front_distance):
+    """앞쪽 장애물이 정지 기준 거리 안에 있는지 확인합니다."""
+
+    return front_distance is not None and front_distance <= STOP_DISTANCE
 
 
 def draw_road(screen, road_scroll_y):
@@ -401,8 +412,18 @@ def main():
         is_moving_forward = pressed_keys[pygame.K_UP] or pressed_keys[pygame.K_w]
         is_moving_backward = pressed_keys[pygame.K_DOWN] or pressed_keys[pygame.K_s]
 
+        # 이동 전 현재 위치에서 장애물이 위험 거리 안에 있는지 확인합니다.
+        # 위험 거리라면 전진 입력만 무시하고, 후진/좌우 이동은 그대로 허용합니다.
+        front_distance_before_move = calculate_front_distance(
+            car_x,
+            car_y,
+            road_scroll_y,
+            obstacle_car,
+        )
+        can_move_forward = not is_obstacle_too_close(front_distance_before_move)
+
         # 자동차 전진 입력 처리: 기준 위치 전까지는 자동차가 올라가고, 이후에는 차선이 내려갑니다.
-        if is_moving_forward:
+        if is_moving_forward and can_move_forward:
             if car_y > CAR_CAMERA_LIMIT_Y:
                 car_y -= CAR_SPEED
                 car_y = max(car_y, CAR_CAMERA_LIMIT_Y)
